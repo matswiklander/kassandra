@@ -159,6 +159,118 @@ def generate_plot(lower_limit: float, upper_limit: float, output_file: str = "ca
     return output_file
 
 
+def generate_accuracy_plot(table_data: List[List[str]], output_file: str = "accuracy_diagram.png") -> str:
+    """
+    Generate a diagram tracking sprint forecast accuracy normalized by duration.
+    
+    Uses a walk-forward approach: for each sprint, calculates the CI from all previous
+    sprints, then compares the actual Stories/Weeks against that forecast.
+    
+    First two sprints are skipped as they cannot produce a meaningful CI.
+    
+    Args:
+        table_data: Parsed markdown table data with columns: Sprint Name, Stories, Weeks
+        output_file: Path to save the generated plot
+        
+    Returns:
+        Path to the generated plot file
+    """
+    # Extract column indices from header
+    header = table_data[0]
+    sprint_name_idx = header.index("Sprint Name")
+    stories_idx = header.index("Stories")
+    weeks_idx = header.index("Weeks")
+    
+    # Prepare data for plotting
+    sprint_names = []
+    stories_pw = []
+    lower_pw = []
+    upper_pw = []
+    
+    # Parse all sprint data
+    all_sprints = []
+    for row in table_data[1:]:
+        if len(row) > max(sprint_name_idx, stories_idx, weeks_idx):
+            try:
+                sprint_name = row[sprint_name_idx]
+                stories = int(row[stories_idx])
+                weeks = int(row[weeks_idx])
+                all_sprints.append({
+                    "name": sprint_name,
+                    "stories": stories,
+                    "weeks": weeks,
+                    "stories_pw": stories / weeks if weeks != 0 else 0
+                })
+            except (ValueError, TypeError, ZeroDivisionError) as e:
+                continue
+    
+    # Calculate CI for each sprint using only previous sprints (walk-forward)
+    for i, sprint in enumerate(all_sprints):
+        # Need at least 2 previous sprints to calculate CI
+        if i < 2:
+            continue
+        
+        # Use all sprints before this one
+        previous_sprints = all_sprints[:i]
+        
+        # Calculate stories/week for previous sprints
+        stories_per_week = []
+        for s in previous_sprints:
+            if s["weeks"] != 0:
+                stories_per_week.append(s["stories"] / s["weeks"])
+        
+        if len(stories_per_week) < 2:
+            continue
+        
+        # Calculate CI using t-distribution
+        mean_value = np.mean(stories_per_week)
+        std_dev = np.std(stories_per_week, ddof=1)
+        n = len(stories_per_week)
+        df = n - 1
+        
+        if std_dev == 0:
+            lower, upper = mean_value, mean_value
+        else:
+            t_score = stats.t.ppf(0.975, df)
+            margin_of_error = t_score * (std_dev / np.sqrt(n))
+            lower = mean_value - margin_of_error
+            upper = mean_value + margin_of_error
+        
+        sprint_names.append(sprint["name"])
+        stories_pw.append(sprint["stories_pw"])
+        lower_pw.append(float(lower))
+        upper_pw.append(float(upper))
+    
+    if not sprint_names:
+        raise Exception("Insufficient sprint data (need at least 3 sprints) for accuracy plot.")
+    
+    # Create plot
+    fig, ax = plt.subplots(figsize=(12, 7))
+    
+    x = np.arange(len(sprint_names))
+    
+    # Fill confidence band
+    ax.fill_between(x, lower_pw, upper_pw, alpha=0.3, color='blue', label='95% Confidence Interval')
+    
+    # Plot actual stories per week
+    ax.plot(x, stories_pw, color='red', marker='o', linewidth=2, label='Actual Stories/week')
+    
+    # Customize plot
+    ax.set_xlabel('Sprint')
+    ax.set_ylabel('Stories per Week')
+    ax.set_title('Sprint Forecast Accuracy (Normalized by Duration)')
+    ax.set_xticks(x)
+    ax.set_xticklabels(sprint_names, rotation=45, ha='right')
+    ax.grid(True, alpha=0.3, axis='y')
+    ax.legend()
+    
+    plt.tight_layout()
+    plt.savefig(output_file, dpi=150)
+    plt.close()
+    
+    return output_file
+
+
 def calculate_confidence_interval(
     sprint_data: List[List[str]],
 ) -> Optional[Tuple[float, float]]:
@@ -236,21 +348,31 @@ def calculate_confidence_interval(
 
 @click.command()
 @click.argument("markdown_file", type=click.Path(exists=True))
-@click.option("--plot/--no-plot", default=False, help="Generate a diagram showing confidence interval over 0-52 weeks")
-@click.option("--output", "-o", default="capacity_diagram.png", help="Output filename for the plot (default: capacity_diagram.png)")
-def main(markdown_file: str, plot: bool, output: str):
+@click.option("--forecast-plot/--no-forecast-plot", default=False, help="Generate a diagram showing confidence interval over 0-52 weeks")
+@click.option("--accuracy-plot/--no-accuracy-plot", default=False, help="Generate a diagram tracking forecast accuracy normalized by duration")
+@click.option("--output", "-o", default="kassandra_plot.png", help="Output filename for diagrams (default: kassandra_plot.png)")
+def main(markdown_file: str, forecast_plot: bool, accuracy_plot: bool, output: str):
     """
     Main function to analyze team delivery capacity from markdown file.
 
     Args:
         markdown_file: Path to markdown file containing sprint data
-        plot: Whether to generate a diagram
-        output: Output filename for the plot
+        forecast_plot: Whether to generate a confidence interval diagram
+        accuracy_plot: Whether to generate a forecast accuracy diagram
+        output: Output filename for diagrams
     """
 
     try:
         # Read, parse, and validate markdown file in one step
         table_data = read_and_parse_sprint_data(markdown_file)
+
+        # Generate accuracy plot if requested
+        if accuracy_plot:
+            try:
+                plot_file = generate_accuracy_plot(table_data, output)
+                click.echo(f"Accuracy diagram saved to: {plot_file}")
+            except Exception as e:
+                click.echo(f"Warning: Could not generate accuracy plot - {str(e)}", err=True)
 
         # Calculate confidence interval
         confidence_interval = calculate_confidence_interval(table_data)
@@ -261,9 +383,9 @@ def main(markdown_file: str, plot: bool, output: str):
             click.echo(f"  Lower limit: {lower_limit:.2f} stories/week")
             click.echo(f"  Upper limit: {upper_limit:.2f} stories/week")
             
-            if plot:
+            if forecast_plot:
                 plot_file = generate_plot(lower_limit, upper_limit, output)
-                click.echo(f"\nDiagram saved to: {plot_file}")
+                click.echo(f"\nForecast diagram saved to: {plot_file}")
 
     except Exception as e:
         click.echo(f"Error: {str(e)}", err=True)

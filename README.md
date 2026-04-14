@@ -11,6 +11,7 @@ A Python CLI application that calculates 95% confidence intervals for team deliv
 - ✅ Calculates Stories/Weeks ratios for delivery capacity
 - ✅ Computes 95% confidence intervals using Student's t-distribution
 - ✅ Generates diagram showing confidence band over 0-52 weeks
+- ✅ Generates diagram tracking forecast accuracy normalized by duration
 - ✅ Handles edge cases (insufficient data, zero variation, etc.)
 - ✅ Provides user-friendly output with clear error messages
 
@@ -42,11 +43,17 @@ pip install -r requirements.txt
 # Basic usage
 python kassandra.py sprint_data.md
 
-# Generate diagram with confidence band over 0-52 weeks
-python kassandra.py sprint_data.md --plot
+# Generate forecast diagram with confidence band over 0-52 weeks
+python kassandra.py sprint_data.md --forecast-plot
 
-# Generate diagram with custom output filename
-python kassandra.py sprint_data.md --plot --output my_capacity.png
+# Generate forecast diagram with custom output filename
+python kassandra.py sprint_data.md --forecast-plot --output my_capacity.png
+
+# Generate forecast accuracy diagram (normalized by duration)
+python kassandra.py sprint_forecast_accuracy.md --accuracy-plot
+
+# Generate accuracy diagram with custom output filename
+python kassandra.py sprint_forecast_accuracy.md --accuracy-plot --output my_accuracy.png
 
 # Show help
 python kassandra.py --help
@@ -82,7 +89,7 @@ Team delivery capacity 95% confidence:
 Generate a diagram showing the confidence band over 52 weeks:
 
 ```bash
-python kassandra.py sprint_data.md --plot
+python kassandra.py sprint_data.md --forecast-plot
 ```
 
 Output:
@@ -92,10 +99,37 @@ Team delivery capacity 95% confidence:
   Lower limit: 7.00 stories/week
   Upper limit: 8.30 stories/week
 
-Diagram saved to: capacity_diagram.png
+Forecast diagram saved to: kassandra_plot.png
 ```
 
 The generated diagram displays a shaded confidence band between the lower and upper limits, with the expected capacity line in the middle, spanning from week 0 to week 52.
+
+### Forecast Accuracy Tracking
+
+Given any markdown file with sprint data (Sprint Name, Stories, Weeks), generate a walk-forward forecast accuracy diagram:
+
+```markdown
+| Sprint Name | Stories | Weeks |
+| :---------- | :-----: | ----: |
+| Sprint 1    |   21    |     3 |
+| Sprint 2    |   21    |     3 |
+| Sprint 3    |   25    |     3 |
+| Sprint 4    |   23    |     3 |
+```
+
+Generate a normalized forecast accuracy diagram:
+
+```bash
+python kassandra.py sprint_data.md --accuracy-plot
+```
+
+Output:
+
+```
+Accuracy diagram saved to: kassandra_plot.png
+```
+
+The generated diagram uses a walk-forward approach: for each sprint (starting from #3), it calculates the 95% confidence interval from all previous sprints, then compares the actual Stories/week against that forecast. The first two sprints are excluded as they cannot produce a meaningful CI. The diagram shows each sprint on the X-axis, Stories per week on the Y-axis, a shaded 95% confidence interval, and actual Stories/week as a line with markers.
 
 ## Algorithm
 
