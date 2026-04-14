@@ -22,6 +22,9 @@ import mistune
 from mistune.plugins.table import table
 from scipy import stats
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 
 def read_and_parse_sprint_data(file_path: str) -> List[List[str]]:
@@ -112,6 +115,50 @@ def validate_table_structure(table_data: List[List[str]]) -> Dict[str, int]:
         raise Exception(f"Table must contain 'Stories' and 'Weeks' columns: {str(e)}")
 
 
+def generate_plot(lower_limit: float, upper_limit: float, output_file: str = "capacity_diagram.png") -> str:
+    """
+    Generate a diagram showing the confidence interval as a band over 0-52 weeks.
+    
+    Args:
+        lower_limit: Lower bound of confidence interval (stories/week)
+        upper_limit: Upper bound of confidence interval (stories/week)
+        output_file: Path to save the generated plot
+        
+    Returns:
+        Path to the generated plot file
+    """
+    weeks = np.arange(0, 53)
+    cumulative_lower = weeks * lower_limit
+    cumulative_upper = weeks * upper_limit
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Fill the confidence band
+    ax.fill_between(weeks, cumulative_lower, cumulative_upper, alpha=0.3, color='blue', label=f'95% Confidence Band ({lower_limit:.2f}-{upper_limit:.2f} stories/week)')
+    
+    # Plot the bounds
+    ax.plot(weeks, cumulative_lower, color='blue', linestyle='--', linewidth=1, label='Lower bound')
+    ax.plot(weeks, cumulative_upper, color='blue', linestyle='--', linewidth=1, label='Upper bound')
+    
+    # Plot the mean line
+    mean_line = weeks * ((lower_limit + upper_limit) / 2)
+    ax.plot(weeks, mean_line, color='blue', linewidth=2, label='Expected capacity')
+    
+    ax.set_xlabel('Weeks')
+    ax.set_ylabel('Stories')
+    ax.set_title('Team Delivery Capacity 95% Confidence Interval')
+    ax.set_xticks(np.arange(0, 53, 4))
+    ax.set_yticks(np.arange(0, int(cumulative_upper[-1]) + 1, max(1, int(cumulative_upper[-1]) // 8)))
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    
+    plt.tight_layout()
+    plt.savefig(output_file, dpi=150)
+    plt.close()
+    
+    return output_file
+
+
 def calculate_confidence_interval(
     sprint_data: List[List[str]],
 ) -> Optional[Tuple[float, float]]:
@@ -189,12 +236,16 @@ def calculate_confidence_interval(
 
 @click.command()
 @click.argument("markdown_file", type=click.Path(exists=True))
-def main(markdown_file: str):
+@click.option("--plot/--no-plot", default=False, help="Generate a diagram showing confidence interval over 0-52 weeks")
+@click.option("--output", "-o", default="capacity_diagram.png", help="Output filename for the plot (default: capacity_diagram.png)")
+def main(markdown_file: str, plot: bool, output: str):
     """
     Main function to analyze team delivery capacity from markdown file.
 
     Args:
         markdown_file: Path to markdown file containing sprint data
+        plot: Whether to generate a diagram
+        output: Output filename for the plot
     """
 
     try:
@@ -209,6 +260,10 @@ def main(markdown_file: str):
             click.echo(f"Team delivery capacity 95% confidence:")
             click.echo(f"  Lower limit: {lower_limit:.2f} stories/week")
             click.echo(f"  Upper limit: {upper_limit:.2f} stories/week")
+            
+            if plot:
+                plot_file = generate_plot(lower_limit, upper_limit, output)
+                click.echo(f"\nDiagram saved to: {plot_file}")
 
     except Exception as e:
         click.echo(f"Error: {str(e)}", err=True)

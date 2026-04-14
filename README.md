@@ -10,6 +10,7 @@ A Python CLI application that calculates 95% confidence intervals for team deliv
 - ✅ Parses markdown tables containing sprint data (Sprint Name, Stories, Weeks)
 - ✅ Calculates Stories/Weeks ratios for delivery capacity
 - ✅ Computes 95% confidence intervals using Student's t-distribution
+- ✅ Generates diagram showing confidence band over 0-52 weeks
 - ✅ Handles edge cases (insufficient data, zero variation, etc.)
 - ✅ Provides user-friendly output with clear error messages
 - ✅ Implements the algorithm specified in SPECIFICATION.md
@@ -42,6 +43,12 @@ pip install -r requirements.txt
 # Basic usage
 python kassandra.py sprint_data.md
 
+# Generate diagram with confidence band over 0-52 weeks
+python kassandra.py sprint_data.md --plot
+
+# Generate diagram with custom output filename
+python kassandra.py sprint_data.md --plot --output my_capacity.png
+
 # Show help
 python kassandra.py --help
 ```
@@ -73,6 +80,24 @@ Team delivery capacity 95% confidence:
   Upper limit: 8.30 stories/week
 ```
 
+Generate a diagram showing the confidence band over 52 weeks:
+
+```bash
+python kassandra.py sprint_data.md --plot
+```
+
+Output:
+
+```
+Team delivery capacity 95% confidence:
+  Lower limit: 7.00 stories/week
+  Upper limit: 8.30 stories/week
+
+Diagram saved to: capacity_diagram.png
+```
+
+The generated diagram displays a shaded confidence band between the lower and upper limits, with the expected capacity line in the middle, spanning from week 0 to week 52.
+
 ## Algorithm
 
 The application implements the algorithm from SPECIFICATION.md:
@@ -99,6 +124,7 @@ The application handles various edge cases:
 - `mistune` - Markdown parser with table support
 - `numpy` - Numerical computing library
 - `scipy` - Scientific computing and statistical functions
+- `matplotlib` - Data visualization and diagram generation
 
 ## Development
 
