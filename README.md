@@ -13,7 +13,6 @@ A Python CLI application that calculates 95% confidence intervals for team deliv
 - ✅ Generates diagram showing confidence band over 0-52 weeks
 - ✅ Handles edge cases (insufficient data, zero variation, etc.)
 - ✅ Provides user-friendly output with clear error messages
-- ✅ Implements the algorithm specified in SPECIFICATION.md
 
 ## Installation
 
@@ -25,7 +24,7 @@ A Python CLI application that calculates 95% confidence intervals for team deliv
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-repo/kassandra.git
+git clone https://github.com/matswiklander/kassandra.git
 cd kassandra
 
 # Create and activate virtual environment
@@ -99,8 +98,6 @@ Diagram saved to: capacity_diagram.png
 The generated diagram displays a shaded confidence band between the lower and upper limits, with the expected capacity line in the middle, spanning from week 0 to week 52.
 
 ## Algorithm
-
-The application implements the algorithm from SPECIFICATION.md:
 
 1. **Data Filtering**: Uses only the 10 most recent sprints
 2. **Ratio Calculation**: Calculates Stories/Weeks for each sprint
